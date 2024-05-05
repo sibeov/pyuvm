@@ -242,6 +242,7 @@ class Monitor(uvm_component):
 class AluEnv(uvm_env):
 
     def build_phase(self):
+        self.logger.info(f"This is the build_phase of {self.get_name()}")
         self.seqr = uvm_sequencer("seqr", self)
         ConfigDB().set(None, "*", "SEQR", self.seqr)
         self.driver = Driver.create("driver", self)
@@ -250,6 +251,7 @@ class AluEnv(uvm_env):
         self.scoreboard = Scoreboard("scoreboard", self)
 
     def connect_phase(self):
+        self.logger.info(f"This is the connect_phase of {self.get_name()}")
         self.driver.seq_item_port.connect(self.seqr.seq_item_export)
         self.cmd_mon.ap.connect(self.scoreboard.cmd_export)
         self.cmd_mon.ap.connect(self.coverage.analysis_export)
