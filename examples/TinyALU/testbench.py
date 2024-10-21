@@ -149,6 +149,7 @@ class Driver(uvm_driver):
     async def run_phase(self):
         await self.launch_tb()
         while True:
+            self.logger.info(f"Waiting for next item in {self.get_name()}")
             cmd = await self.seq_item_port.get_next_item()
             await self.bfm.send_op(cmd.A, cmd.B, cmd.op)
             result = await self.bfm.get_result()
@@ -263,12 +264,15 @@ class AluTest(uvm_test):
     """Test ALU with random and max values"""
 
     def build_phase(self):
+        self.logger.info(f"Build phase from {self.get_name()}")
         self.env = AluEnv("env", self)
 
     def end_of_elaboration_phase(self):
+        self.logger.info(f"EOE phase from {self.get_name()}")
         self.test_all = TestAllSeq.create("test_all")
 
     async def run_phase(self):
+        self.logger.info(f"Run phase from {self.get_name()}")
         self.raise_objection()
         await self.test_all.start()
         self.drop_objection()

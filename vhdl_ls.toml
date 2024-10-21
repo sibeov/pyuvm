@@ -1,0 +1,10 @@
+standard = "2008"
+
+[libraries]
+tinyalu.files = [
+	"./examples/TinyALU/hdl/vhdl/*.vhd",
+]
+
+tinyalu_reg.files = [
+	"./examples/TinyALU_reg/hdl/vhdl/*.vhd"
+]
