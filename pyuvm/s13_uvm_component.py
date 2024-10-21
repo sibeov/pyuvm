@@ -1,17 +1,21 @@
+import fnmatch
+import logging
+import string
+
+from pyuvm import INFO, error_classes, utility_classes
+from pyuvm._utils import cocotb_version_info
 from pyuvm.s06_reporting_classes import uvm_report_object
 from pyuvm.s08_factory_classes import uvm_factory
-from pyuvm.s09_phasing import uvm_common_phases, uvm_run_phase, uvm_build_phase
-from pyuvm import error_classes, INFO
-from pyuvm import utility_classes
-import logging
-import fnmatch
-import string
-from cocotb.log import SimColourLogFormatter, SimTimeContextFilter
+from pyuvm.s09_phasing import uvm_build_phase, uvm_common_phases, uvm_run_phase
+
+if cocotb_version_info < (2, 0):
+    from cocotb.log import SimColourLogFormatter, SimTimeContextFilter
+else:
+    from cocotb.logging import SimColourLogFormatter, SimTimeContextFilter
 
 
 # 13.1.1
 class uvm_component(uvm_report_object):
-
     component_dict = {}
 
     @classmethod
@@ -22,6 +26,9 @@ class uvm_component(uvm_report_object):
         """
         13.1.2.1---This is new() in the IEEE-UVM, but we mean
         the same thing with __init__()
+
+        :param name: The name of the component. Used in the UVM hierarchy
+        :param parent: The parent component.  If None, the parent is uvm_root
         """
 
         self._children = {}
@@ -38,9 +45,15 @@ class uvm_component(uvm_report_object):
             uvm_component.component_dict[self.get_full_name()] = self
 
     def clear_children(self):
+        """
+        Removes the direct children from this component.
+        """
         self._children = {}
 
     def clear_hierarchy(self):
+        """
+        Removes self from the UVM hierarchy
+        """
         self._parent = None
         self.clear_children()
 
@@ -62,14 +75,21 @@ class uvm_component(uvm_report_object):
     def get_parent(self):
         """
         :return: parent object
-        13.1.3.1--- No 'get_' prefix
+
+        13.1.3.1
         """
         return self._parent
 
     def raise_objection(self):
+        """
+        Raise an objection, usually at the start of the ``run_phase()``
+        """
         utility_classes.ObjectionHandler().raise_objection(self)
 
     def drop_objection(self):
+        """
+        Drop an objection, usually at the end of the ``run_phase()``
+        """
         utility_classes.ObjectionHandler().drop_objection(self)
 
     def objection(self):
@@ -87,7 +107,8 @@ class uvm_component(uvm_report_object):
 
     def cdb_set(self, label, value, inst_path="*"):
         """
-        Store an object in the config_db.
+        A convenience routing to store an object in the config_db using
+        this component's ``get_full_name()`` path.
 
         :param value: The object to store
         :param label: The label to use to retrieve it
@@ -99,8 +120,9 @@ class uvm_component(uvm_report_object):
 
     def cdb_get(self, label, inst_path=""):
         """
-        Retrieve an object from the config_db using this components
-        get_full_name() path. Can find objects stored with wildcards
+        A convenience routine that retrieves an object from
+        the config_db using this component's
+        ``get_full_name()`` path. Can find objects stored with wildcards
 
         :param inst_path: The path below this component
         :param label: The label used to store the value
@@ -124,7 +146,8 @@ class uvm_component(uvm_report_object):
 
     def get_full_name(self):
         """
-        :return: Name concatenated to parent name.
+        :return: This component's name concatenated to parent name.
+
         13.1.3.2
         """
         if self.get_name() is None or self.get_name() == 'uvm_root':
@@ -163,7 +186,7 @@ class uvm_component(uvm_report_object):
     def get_children(self):
         """
         13.1.3.3
-        :return: dict with children
+        :return: A dict containing children objects
         """
         return list(self.children)
 
@@ -178,7 +201,8 @@ class uvm_component(uvm_report_object):
         """
         We return a generator to find the children.
         This is more pythonic and saves memory for large hierarchies.
-        :return: An ordered list of components top to bottom.
+
+        :return: A generator that returns the children.
         """
         yield self
         for child in self.children:
@@ -203,7 +227,8 @@ class uvm_component(uvm_report_object):
         """
         13.1.3.4
         Implements the intention of this requirement
-        without the approach taken in the UVM
+        without the approach taken in the UVM  We use a
+        generator instead.
         """
         for child in self._children:
             yield self._children[child]
@@ -215,8 +240,8 @@ class uvm_component(uvm_report_object):
         """
         13.1.3.4
         :param self:
-        :param name: child string
-        :return: uvm_component of that name
+        :param name: child's name
+        :return: child ``uvm_component`` of that name
         """
         assert (isinstance(name, str))
         try:
@@ -228,16 +253,17 @@ class uvm_component(uvm_report_object):
         """
         13.1.3.5
         :param self:
-        :return: Number of children in component
+        :return: The number of children in component
+
         """
         return len(self._children)
 
     def has_child(self, name):
         """
         13.1.3.6
-        :param self:
-        :param name: Name of child object
+        :param name: Name of child the object
         :return: True if exists, False otherwise
+
         """
         assert (isinstance(name, str))
         return name in self._children
@@ -247,8 +273,10 @@ class uvm_component(uvm_report_object):
         13.1.3.7
         Return a component base on the path. If . then
         use full name from root otherwise relative
+
         :param name: The search name
         :return: either the component or None
+
         """
         assert (isinstance(name, str))
         if name[0] == '.':
@@ -264,8 +292,8 @@ class uvm_component(uvm_report_object):
         """
         13.1.3.8
         Get the depth that I am from the top component. uvm_root is 0.
-        :param self: That's me
-        :return: depth
+
+        :return: The hierarchy depth from me to the bottom.
         """
         # Rather than getting all recursive just count
         # levels in the full name.
@@ -280,8 +308,10 @@ class uvm_component(uvm_report_object):
         """
         Set the logging level for this component's logger
         and all the way down the hierarchy
+
         :param logging_level: typically a constant from logging module
         :return: None
+
         """
         self.set_logging_level(logging_level)
         for child in self.children:
@@ -290,6 +320,7 @@ class uvm_component(uvm_report_object):
     def add_logging_handler_hier(self, handler):
         """
         Add an additional handler all the way down the component hierarchy
+
         :param handler: A logging.Handler object
         :return: None
         """
@@ -302,6 +333,7 @@ class uvm_component(uvm_report_object):
     def remove_logging_handler_hier(self, handler):
         """
         Remove a handler from all loggers below this component
+
         :param handler: logging handler
         :return: None
         """
@@ -312,11 +344,18 @@ class uvm_component(uvm_report_object):
             child.remove_logging_handler_hier(handler)
 
     def remove_streaming_handler_hier(self):
+        """
+        Remove this component's streaming handler and all the way down
+        the hierarchy
+        """
         self.remove_streaming_handler()
         for child in self.children:
             child.remove_streaming_handler_hier()
 
     def disable_logging_hier(self):
+        """
+        Disable logging for this component and all the way down the hierarchy
+        """
         self.disable_logging()
         for child in self.children:
             child.disable_logging_hier()
@@ -365,20 +404,20 @@ class uvm_component(uvm_report_object):
 # 13.2 (rest of 13.2 is in s13_predefined_components)
 class uvm_test(uvm_component):
     """
-        The base class for all tests
+    The base class for all tests
     """
 
 
 class uvm_root(uvm_component, metaclass=utility_classes.UVM_ROOT_Singleton):
     """
-    F.7.  We do not use uvm_pkg to hold uvm_root.  Instead it
+    F.7.  We do not use ``uvm_pkg`` to hold ``uvm_root``.  Instead it
     is a class variable of uvm_component.  This avoids
     circular reference issues regarding uvm_pkg.
 
     Plus, it's cleaner.
 
-    uvm_root is still a singleton that you access through its
-    constructor instead of through a get() method.
+    ``uvm_root`` is still a singleton that you access through its
+    constructor instead of through a ``get()`` method.
 
     Much of the functionality in Annex F delivers functionality
     in SystemVerilog that is already built into Python. So we're
@@ -387,6 +426,9 @@ class uvm_root(uvm_component, metaclass=utility_classes.UVM_ROOT_Singleton):
 
     @classmethod
     def clear_singletons(cls, keep_set={}):
+        """
+        Clear the singletons in the system.  This is used for testing
+        """
         keepers = {uvm_factory, utility_classes.FactoryData}.union(keep_set)
         utility_classes.Singleton.clear_singletons(keep=keepers)
 
@@ -408,11 +450,13 @@ class uvm_root(uvm_component, metaclass=utility_classes.UVM_ROOT_Singleton):
 # is using it, and in fact it is recommended that people
 # stick to the basic phases.  So this implementation loops
 # through the hierarchy and runs the phases.
-    async def run_test(self, test_name, keep_singletons=False, keep_set=set()):
+    async def run_test(self, test_name,
+                       keep_singletons=False, keep_set=set()):
         """
         :param test_name: The uvm test name or test class
         :param keep_singletons: If True do not clear singletons (default False)
         :param keep_set: Set of singleton classes to keep
+            if keep_singletons is False. Pass a list of singletons to `set()`
         :return: none
         """
         factory = uvm_factory()
@@ -494,9 +538,11 @@ class ConfigDB(metaclass=utility_classes.Singleton):
     def _get_context_inst_name(context, inst_name):
         """
         Get the config_key from context and passed inst_name
+
         :param context: uvm_component or None
         :param inst_name: string that can be a glob
         :return: string that is the key
+
         """
         assert context is None or isinstance(context, uvm_component), \
             "config_db context must be None or a uvm_component. "
@@ -511,6 +557,9 @@ class ConfigDB(metaclass=utility_classes.Singleton):
         return context, inst_name
 
     def trace(self, method, context, inst_name, field_name, value):
+        """
+        Output the ConfigDB activity if tracing is on.
+        """
         if self.is_tracing:
             # noinspection SpellCheckingInspection
             self.logger_holder.logger.info(f"CFGDB/{method} Context: {context}  --  {inst_name} {field_name}={value}")  # noqa: E501
@@ -520,11 +569,13 @@ class ConfigDB(metaclass=utility_classes.Singleton):
         Stores an object in the db using the context and
         inst_name to create a retrieval path, and the key
         name.
+
         :param context: A handle to a component
         :param inst_name: The instance name within the component
         :param field_name: The key we're setting
         :param value: The object to be stored
         :return: None
+
         """
 
         if not set(field_name).issubset(self.legal_chars):
@@ -553,14 +604,17 @@ class ConfigDB(metaclass=utility_classes.Singleton):
         The component path matches against the paths in the ConfigDB. The path
         cannot have wildcards, but can match against keys with wildcards.
         Return the value stored at key. If the key is missing, returns default
-        or raises UVMConfigItemNotFound.
+        or raises ``UVMConfigItemNotFound``.
 
         :param context: The component making the call
         :param inst_name: component full path with no wildcards
         :param field_name: the field_name being retrieved
         :param default: the value to return if there is no key, defaults to
             default_get
+        :raises UVMConfigItemNotFound: if the key is not found and the
+        default is not set
         :return: value found at location
+
         """
         if not set(inst_name).issubset(self.legal_chars):
             raise error_classes.UVMError(
@@ -631,10 +685,12 @@ class ConfigDB(metaclass=utility_classes.Singleton):
     def exists(self, context, inst_name, field_name):
         """
         Returns true if there is data in the database at this location
+
         :param context: None or uvm_component
         :param inst_name: instance name string in context
         :param field_name: key name for location
         :return: True if exists
+
         """
         try:
             _ = self.get(context, inst_name, field_name)
@@ -643,6 +699,9 @@ class ConfigDB(metaclass=utility_classes.Singleton):
         return True
 
     def wait_modified(self):
+        """
+        :raises UVMNotImplemented: This is not implemented in pyuvm
+        """
         raise error_classes.UVMNotImplemented(
             "wait_modified not implemented pending requests for it.")
 

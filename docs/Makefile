@@ -40,8 +40,11 @@ help:
 
 clean:
 	-rm -rf $(BUILDDIR)/*
+	-rm -rf pyuvm.rst modules.rst
 
 html:
+	sphinx-apidoc -o . ../pyuvm
+	@rm modules.rst
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

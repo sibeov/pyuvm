@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="pyuvm",
-    version="3.0.0.dev0",
+    version="3.0.0",
     author="Ray Salemi",
     author_email="ray@raysalemi.com",
     description="A Python implementation of the UVM using cocotb",
@@ -24,5 +24,5 @@ setuptools.setup(
     ],
     packages=setuptools.find_packages(),
     python_requires=">=3.6",
-    install_requires="cocotb>=1.6.0",
+    install_requires="cocotb>=1.6.0,<2.0",
 )
